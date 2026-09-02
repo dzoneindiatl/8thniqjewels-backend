@@ -1,0 +1,40 @@
+[11-Aug-2025 12:52:49 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/vasvijpr/superadmin.vasvi.in/config/app.php:19
+Stack trace:
+#0 {main}
+  thrown in /home/vasvijpr/superadmin.vasvi.in/config/app.php on line 19
+[11-Aug-2025 12:52:55 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/vasvijpr/superadmin.vasvi.in/config/broadcasting.php:18
+Stack trace:
+#0 {main}
+  thrown in /home/vasvijpr/superadmin.vasvi.in/config/broadcasting.php on line 18
+[11-Aug-2025 12:52:56 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/vasvijpr/superadmin.vasvi.in/config/cache.php:18
+Stack trace:
+#0 {main}
+  thrown in /home/vasvijpr/superadmin.vasvi.in/config/cache.php on line 18
+[11-Aug-2025 12:53:02 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/vasvijpr/superadmin.vasvi.in/config/database.php:18
+Stack trace:
+#0 {main}
+  thrown in /home/vasvijpr/superadmin.vasvi.in/config/database.php on line 18
+[11-Aug-2025 12:53:13 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/vasvijpr/superadmin.vasvi.in/config/filesystems.php:16
+Stack trace:
+#0 {main}
+  thrown in /home/vasvijpr/superadmin.vasvi.in/config/filesystems.php on line 16
+[11-Aug-2025 12:53:20 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/vasvijpr/superadmin.vasvi.in/config/mail.php:16
+Stack trace:
+#0 {main}
+  thrown in /home/vasvijpr/superadmin.vasvi.in/config/mail.php on line 16
+[11-Aug-2025 12:53:28 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/vasvijpr/superadmin.vasvi.in/config/queue.php:16
+Stack trace:
+#0 {main}
+  thrown in /home/vasvijpr/superadmin.vasvi.in/config/queue.php on line 16
+[11-Aug-2025 12:53:39 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function env() in /home/vasvijpr/superadmin.vasvi.in/config/services.php:18
+Stack trace:
+#0 {main}
+  thrown in /home/vasvijpr/superadmin.vasvi.in/config/services.php on line 18
+[11-Aug-2025 12:53:46 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function config() in /home/vasvijpr/superadmin.vasvi.in/config/settings.php:2
+Stack trace:
+#0 {main}
+  thrown in /home/vasvijpr/superadmin.vasvi.in/config/settings.php on line 2
+[11-Aug-2025 12:53:53 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function resource_path() in /home/vasvijpr/superadmin.vasvi.in/config/view.php:17
+Stack trace:
+#0 {main}
+  thrown in /home/vasvijpr/superadmin.vasvi.in/config/view.php on line 17
