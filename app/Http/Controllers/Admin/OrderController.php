@@ -50,6 +50,152 @@ class OrderController extends Controller
         //$this->request = $request;
     }
 
+    public function paymentLinkCallback(Request $request)
+    {
+        $callback = $request->validate([
+            'razorpay_payment_id' => ['required', 'string'],
+            'razorpay_payment_link_id' => ['required', 'string'],
+            'razorpay_payment_link_reference_id' => ['nullable', 'string'],
+            'razorpay_payment_link_status' => ['required', 'string'],
+            'razorpay_signature' => ['required', 'string'],
+        ]);
+
+        if (strtolower($callback['razorpay_payment_link_status']) !== 'paid') {
+            return response('Payment has not been completed.', 400);
+        }
+
+        $keySecret = $this->razorpayCredentials()['secret'];
+        $signaturePayload = implode('|', [
+            $callback['razorpay_payment_link_id'],
+            $callback['razorpay_payment_link_reference_id'] ?? '',
+            $callback['razorpay_payment_link_status'],
+            $callback['razorpay_payment_id'],
+        ]);
+        $expectedSignature = hash_hmac('sha256', $signaturePayload, $keySecret);
+
+        if (!hash_equals($expectedSignature, $callback['razorpay_signature'])) {
+            return response('Invalid payment confirmation signature.', 400);
+        }
+
+        $order = $this->syncPaidPaymentLink(
+            $callback['razorpay_payment_link_id'],
+            $callback['razorpay_payment_link_reference_id'] ?? null
+        );
+
+        if (!$order) {
+            return response('The payment link is not confirmed as paid.', 409);
+        }
+
+        return response(
+            'Payment confirmed for order ' . e($order->order_number) . '. You may close this page.',
+            200
+        );
+    }
+
+    public function paymentLinkWebhook(Request $request)
+    {
+        $webhookSecret = config('services.razorpay.webhook_secret');
+        if (empty($webhookSecret)) {
+            Log::error('Razorpay payment-link webhook secret is not configured.');
+            return response()->json(['message' => 'Webhook is not configured.'], 500);
+        }
+
+        $signature = (string) $request->header('X-Razorpay-Signature');
+        $expectedSignature = hash_hmac('sha256', $request->getContent(), $webhookSecret);
+        if ($signature === '' || !hash_equals($expectedSignature, $signature)) {
+            return response()->json(['message' => 'Invalid webhook signature.'], 400);
+        }
+
+        $payload = $request->json()->all();
+        if (($payload['event'] ?? null) !== 'payment_link.paid') {
+            return response()->json(['status' => 'ignored']);
+        }
+
+        $paymentLink = $payload['payload']['payment_link']['entity'] ?? [];
+        $linkId = $paymentLink['id'] ?? null;
+        if (empty($linkId)) {
+            Log::error('Razorpay payment-link webhook is missing the payment link ID.');
+            return response()->json(['message' => 'Payment link ID is missing.'], 400);
+        }
+
+        $order = $this->syncPaidPaymentLink(
+            $linkId,
+            $paymentLink['reference_id'] ?? null
+        );
+        if (!$order) {
+            return response()->json(['message' => 'Payment link is not confirmed as paid.'], 409);
+        }
+
+        return response()->json(['status' => 'processed']);
+    }
+
+    private function razorpayCredentials(): array
+    {
+        $isLiveMode = strtolower(trim((string) config('services.razorpay.mode', 'test'))) === 'live';
+        $key = $isLiveMode
+            ? config('services.razorpay.live_key')
+            : config('services.razorpay.test_key');
+        $secret = $isLiveMode
+            ? config('services.razorpay.live_secret')
+            : config('services.razorpay.test_secret');
+
+        if (empty($key) || empty($secret)) {
+            throw new \RuntimeException(
+                'Razorpay ' . ($isLiveMode ? 'live' : 'test') . ' API credentials are not configured.'
+            );
+        }
+
+        return ['key' => $key, 'secret' => $secret];
+    }
+
+    private function syncPaidPaymentLink(string $linkId, ?string $referenceId): ?Order
+    {
+        $credentials = $this->razorpayCredentials();
+        $link = Http::withBasicAuth($credentials['key'], $credentials['secret'])
+            ->get('https://api.razorpay.com/v1/payment_links/' . rawurlencode($linkId))
+            ->throw()
+            ->json();
+
+        if (
+            ($link['status'] ?? null) !== 'paid'
+            || (int) ($link['amount_paid'] ?? 0) < (int) ($link['amount'] ?? 0)
+        ) {
+            return null;
+        }
+
+        $referenceId = $referenceId ?: ($link['reference_id'] ?? null);
+        $order = is_numeric($referenceId)
+            ? Order::find((int) $referenceId)
+            : null;
+
+        if (!$order && !empty($link['short_url'])) {
+            $order = Order::where('is_half_payment_url', $link['short_url'])->first();
+        }
+
+        if (!$order || empty($link['short_url']) || $order->is_half_payment_url !== $link['short_url']) {
+            Log::warning('Could not match a paid Razorpay payment link to its order.', [
+                'payment_link_id' => $linkId,
+                'reference_id' => $referenceId,
+            ]);
+            return null;
+        }
+
+        $amountPaid = (int) ($link['amount_paid'] ?? 0);
+        if ($amountPaid < (int) round(((float) $order->pending_amount) * 100)) {
+            Log::warning('Razorpay payment link was paid for less than the order pending amount.', [
+                'order_id' => $order->id,
+                'payment_link_id' => $linkId,
+            ]);
+            return null;
+        }
+
+        $order->pending_amount = 0;
+        $order->payment_status = 'paid';
+        $order->save();
+
+        return $order;
+    }
+
     public function index(Request $request)
     {
         $getStatusAccrdingtoOrderstatusForAdmin = Order::getStatusAccrdingtoOrderstatusForAdmin();
@@ -398,6 +544,7 @@ class OrderController extends Controller
             $orderStatusId = OrderStatus::where('slug', $status)->value('id');
             
             $order = Order::find($id);
+            $previousStatus = $order->status;
             $order->status = $status;
             $order->delivery_partner_name = $delivery_partner_name;
             $order->save();
@@ -510,61 +657,61 @@ class OrderController extends Controller
             // }
 
             $payment_url = '';
-            if ($status == 'ready-to-shipped' && $ordermain->is_half_payment==1) {  // Ready to Order = half payment order case
-                // 1. Get Data
-                if(env('RAZORPAY_MODE', 'live') == 'live'){
-                    $keyId = env('RAZORPAY_LIVE_KEY'); 
-                    $keySecret = env('RAZORPAY_LIVE_SECRET');
-                } else {
-                    $keyId = env('RAZORPAY_TEST_KEY'); 
-                    $keySecret = env('RAZORPAY_TEST_SECRET');
+            $pendingAmount = (float) ($ordermain->pending_amount ?? 0);
+            if ($status === 'ready-to-shipped' && $pendingAmount > 0) {
+                $payment_url = $ordermain->is_half_payment_url ?? '';
+                if ($previousStatus !== 'ready-to-shipped' || empty($payment_url)) {
+                    $razorpayMode = strtolower(trim((string) config('services.razorpay.mode', 'test')));
+                    $isLiveMode = $razorpayMode === 'live';
+                    $keyId = $isLiveMode
+                        ? config('services.razorpay.live_key')
+                        : config('services.razorpay.test_key');
+                    $keySecret = $isLiveMode
+                        ? config('services.razorpay.live_secret')
+                        : config('services.razorpay.test_secret');
+
+                    if (empty($keyId) || empty($keySecret)) {
+                        throw new \RuntimeException(
+                            'Razorpay ' . ($isLiveMode ? 'live' : 'test') . ' API credentials are not configured.'
+                        );
+                    }
+
+                    $user = User::where('id', $ordermain->user_id)->first();
+                    if (!$user || empty($user->email)) {
+                        throw new \RuntimeException('Cannot create the remaining-balance payment link because the customer email is missing.');
+                    }
+
+                    $data = [
+                        "amount" => (int) round($pendingAmount * 100),
+                        "currency" => "INR",
+                        "accept_partial" => false,
+                        "description" => "Remaining payment for Order #" . $ordermain->order_number,
+                        "reference_id" => (string) $ordermain->id,
+                        "customer" => [
+                            "name" => $user->name,
+                            "email" => $user->email,
+                        ],
+                        "notify" => [
+                            "sms" => true,
+                            "email" => true
+                        ],
+                        "reminder_enable" => true,
+                        "callback_url" => config('services.razorpay.callback_url')
+                            ?: route('checkout.payment-link.callback'),
+                        "callback_method" => "get"
+                    ];
+
+                    $response = Http::withBasicAuth($keyId, $keySecret)
+                        ->post('https://api.razorpay.com/v1/payment_links', $data)
+                        ->throw();
+                    $payment_url = $response->json('short_url');
+                    if (empty($payment_url)) {
+                        throw new \RuntimeException('Razorpay did not return a payment link for the remaining order balance.');
+                    }
+
+                    $ordermain->is_half_payment_url = $payment_url;
+                    $ordermain->save();
                 }
-                
-                $user  = User::where('id', $ordermain->user_id)->first();
-                $customerName  = $user->name;
-                $customerEmail = $user->email;
-                $customerPhone = $user->phone_number;
-                $amount        = $order->total;
-
-                // 2. PREPARE PAYLOAD
-                $data = [
-                    "amount" => $amount * 100, // Convert to paise (e.g. ₹500 = 50000)
-                    "currency" => "INR",
-                    "accept_partial" => false,
-                    "description" => "Payment for Order #101",
-                    "customer" => [
-                        "name" => $customerName,
-                        "email" => $customerEmail,
-                        "contact" => "+91" . $customerPhone
-                    ],
-                    "notify" => [
-                        "sms" => true,   // Razorpay sends SMS to customer automatically
-                        "email" => true  // Razorpay sends Email to customer automatically
-                    ],
-                    "reminder_enable" => true,
-                    "callback_url" => "https://8thniqjewells.com/checkout-callback", // Your success page
-                    "callback_method" => "get"
-                ];
-
-                // 3. EXECUTE CURL
-                $ch = curl_init();
-                curl_setopt($ch, CURLOPT_URL, 'https://api.razorpay.com/v1/payment_links');
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_USERPWD, $keyId . ":" . $keySecret);
-                curl_setopt($ch, CURLOPT_POST, true);
-                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
-                curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
-
-                $response = curl_exec($ch);
-                $resData = json_decode($response, true);
-                curl_close($ch);
-                
-                if (isset($resData['short_url'])) {
-                    $payment_url = $resData['short_url'];
-                    Order::where('id', $id)->update([
-                        'is_half_payment_url' => $payment_url,
-                    ]);
-                } 
             }
             
             if ($status == 'shipped') {  // confirmed
@@ -664,7 +811,13 @@ class OrderController extends Controller
                 }*/
             }
 
-            EmailHelper::getEmailTemplate($orsderSlug, $orderItem, $ordermain , $payment_url);
+            EmailHelper::getEmailTemplate(
+                $orsderSlug,
+                $orderItem,
+                $ordermain,
+                $payment_url,
+                $payment_url ? $pendingAmount : null
+            );
             // Sent email to user about change order status
 
 

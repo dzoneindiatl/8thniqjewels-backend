@@ -39,6 +39,7 @@ use App\Models\City;
 Route::get('/', [AuthController::class, 'login']);
 
 Route::match(['get', 'post'], '/orders/generate-invoice/{id}', [OrderController::class, 'generateNewInvoice'])->name('orders.generate.invoice');
+Route::get('/checkout-callback', [OrderController::class, 'paymentLinkCallback'])->name('checkout.payment-link.callback');
 
 Route::prefix('')->name('admin-')->group(function () {
 

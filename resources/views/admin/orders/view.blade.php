@@ -53,6 +53,7 @@
                                     <th scope="col">Quantity</th>
                                     <th scope="col">Discount</th>
                                     <th scope="col">GST</th>
+                                    <th scope="col">PENDING AMOUNT</th>
 
 
                                     <th scope="col" class="text-end">Total Amount <br> (Including GST)</th>
@@ -94,12 +95,12 @@
                                                         $productimage = getProductImages($item->product_id, $combo);
                                                     @endphp
                                                     @if ($productimage && !empty($productimage->graphic))
-                                                        <img src="{{ env('WEBSITE_URL') . '/uploads/products/' . $productimage->graphic }}"
+                                                        <img src="{{ rtrim(config('constant.PRODUCT_IMAGE_URL'), '/') . '/' . ltrim($productimage->graphic, '/') }}"
                                                             alt="{{ $item->product->name }}" class="img-fluid d-block"
                                                             style="width:70px; height:70px;">
                                                     @else
                                                         {{-- Fallback image --}}
-                                                        <img src="{{ asset('images/no-image.png') }}" alt="No image"
+                                                        <img src="{{ asset('img/no-image.jpg') }}" alt="No image"
                                                             class="img-fluid d-block" style="width:70px; height:70px;">
                                                     @endif
                                                 </div>
@@ -322,6 +323,9 @@
                                         <td>{{ $item->qty }}</td>
                                         <td>₹ {{ $item->discount_amount ?? 0.0 }}</td>
                                         <td>₹ {{ $item->tax_amount ?? 0.0 }}</td>
+                                        @if ($loop->first)
+                                            <td rowspan="{{ $order->items->count() }}">₹ {{ $order->pending_amount ?? 0 }}</td>
+                                        @endif
                                         <td class="fw-medium text-end">
                                             ₹ {{ $item->total }} @php  $SubTotal += $item->total;  @endphp
                                         </td>
@@ -329,7 +333,7 @@
                                 @endforeach
                                 <tr class="border-top border-top-dashed">
                                     <td colspan="4"></td>
-                                    <td colspan="2" class="fw-medium p-0">
+                                    <td colspan="4" class="fw-medium p-0">
                                         <table class="table table-borderless mb-0">
                                             <tbody>
                                                 <tr>
@@ -610,7 +614,7 @@
                             <p class="text-muted mb-0">Payment Status:</p>
                         </div>
                         <div class="flex-grow-1 ms-2">
-                            <h6 class="mb-0">{{ $order->payment_status }}</h6>
+                            <h6 class="mb-0">{{ empty($order->payment_status) && ($order->pending_amount ?? 0) > 0 ? 'Partially' : $order->payment_status }}</h6>
                         </div>
                     </div>
 

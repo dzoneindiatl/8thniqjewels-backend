@@ -31,4 +31,14 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    'razorpay' => [
+        'mode' => env('RAZORPAY_MODE', 'test'),
+        'test_key' => env('RAZORPAY_TEST_KEY'),
+        'test_secret' => env('RAZORPAY_TEST_SECRET'),
+        'live_key' => env('RAZORPAY_LIVE_KEY'),
+        'live_secret' => env('RAZORPAY_LIVE_SECRET'),
+        'callback_url' => env('RAZORPAY_CALLBACK_URL'),
+        'webhook_secret' => env('RAZORPAY_WEBHOOK_SECRET'),
+    ],
+
 ];

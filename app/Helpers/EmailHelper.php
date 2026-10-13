@@ -14,7 +14,7 @@ class EmailHelper
 
 
 
-    public static function getEmailTemplate($slug, $order, $ordermain , $payment_url=null)
+    public static function getEmailTemplate($slug, $order, $ordermain, $payment_url = null, $payment_amount = null)
     {
         $orderDetails = '<table border="1" cellpadding="5" cellspacing="0" style="border-collapse:collapse;">
                             <tr>
@@ -23,31 +23,86 @@ class EmailHelper
                                 <th>Qty</th>
                                 <th>Total Price</th>
                                 <th>Combination</th>
+                                <th>Pending Payment</th>
                             </tr>';
 
-        $combination = json_decode($order->combination, true);
-        $combinationText = collect($combination)->map(function ($v, $k) {
-            return ucfirst($k) . ': ' . $v;
-        })->implode(', ');
-
+        $pendingPayment = $payment_amount ?? ($ordermain->pending_amount ?? 0);
+        $combination = json_decode($order->combination ?? '', true);
+        $combination = is_array($combination) ? $combination : [];
         $valueIds = [];
 
         foreach ($combination as $variantName => $variantValue) {
-            $variantId = DB::table('variants')
-                ->where('name', $variantName)
-                ->value('id');
+            if (is_numeric($variantName) && is_numeric($variantValue)) {
+                $valueIds[] = (int) $variantValue;
+                continue;
+            }
 
-            if ($variantId) {
-                $valueId = DB::table('variant_values')
-                    ->where('variant_id', $variantId)
-                    ->where('name', $variantValue)
+            if (is_numeric($variantValue)) {
+                $valueIds[] = (int) $variantValue;
+            } else {
+                $variantId = DB::table('variants')
+                    ->where('name', $variantName)
                     ->value('id');
 
-                if ($valueId) {
-                    $valueIds[] = $valueId;
+                if ($variantId) {
+                    $valueId = DB::table('variant_values')
+                        ->where('variant_id', $variantId)
+                        ->where('name', $variantValue)
+                        ->value('id');
+
+                    if ($valueId) {
+                        $valueIds[] = $valueId;
+                    }
                 }
             }
         }
+
+        if (empty($combination) && !empty($order->product_variant_combination_id)) {
+            $variantCombination = DB::table('product_variant_combinations')
+                ->where('id', $order->product_variant_combination_id)
+                ->first(['combination_id', 'primary_variant_value_id']);
+            $combinationIds = json_decode($variantCombination->combination_id ?? '', true);
+            if (is_array($combinationIds)) {
+                $valueIds = array_merge($valueIds, array_filter($combinationIds, 'is_numeric'));
+            }
+            if (is_numeric($variantCombination->primary_variant_value_id ?? null)) {
+                $valueIds[] = (int) $variantCombination->primary_variant_value_id;
+            }
+        }
+
+        $variantValues = empty($valueIds)
+            ? collect()
+            : DB::table('variant_values')
+                ->join('variants', 'variants.id', '=', 'variant_values.variant_id')
+                ->whereIn('variant_values.id', array_unique($valueIds))
+                ->select('variant_values.id', 'variant_values.name as value_name', 'variants.name as variant_name')
+                ->get()
+                ->keyBy('id');
+
+        $combinationParts = [];
+        foreach ($combination as $variantName => $variantValue) {
+            if (is_numeric($variantName)) {
+                $resolvedValue = $variantValues->get($variantValue);
+                if ($resolvedValue) {
+                    $combinationParts[] = $resolvedValue->variant_name . ': ' . $resolvedValue->value_name;
+                }
+            } elseif (is_numeric($variantValue)) {
+                $resolvedValue = $variantValues->get($variantValue);
+                $combinationParts[] = ($resolvedValue->variant_name ?? ucfirst($variantName))
+                    . ': ' . ($resolvedValue->value_name ?? $variantValue);
+            } else {
+                $combinationParts[] = ucfirst($variantName) . ': ' . $variantValue;
+            }
+        }
+
+        if (empty($combinationParts)) {
+            $combinationParts = $variantValues
+                ->map(function ($value) {
+                    return $value->variant_name . ': ' . $value->value_name;
+                })
+                ->all();
+        }
+        $combinationText = e(implode(', ', $combinationParts));
 
         // Find image matching any of the variant values
         $productimage = DB::table('product_graphics')
@@ -62,6 +117,7 @@ class EmailHelper
                                 <td>' . @$order->qty  . '</td>
                                 <td>' . @$order->total . '</td>
                                <td>' .  @$combinationText . '</td>
+                               <td>₹' . number_format((float) $pendingPayment, 2) . '</td>
                             </tr>';
         $orderDetails .= '</table>';
         $trackDetail = "";
@@ -71,7 +127,9 @@ class EmailHelper
 
 
         if (!empty($payment_url)) {
-            $trackDetail = '<div><p>Payment Url (Your order has been ready to shipped, Please do remaining half payment) <br><strong>' . $payment_url . ' </strong></p></div>';
+            $trackDetail = '<div><p>Your order is ready to ship. Please pay the remaining balance of ₹'
+                . number_format((float) $payment_amount, 2)
+                . ' using the link below:<br><a href="' . e($payment_url) . '">' . e($payment_url) . '</a></p></div>';
         }
 
 

@@ -240,6 +240,11 @@ class Controller extends BaseController
                         $obj              =    new OrderItem;
                         $obj->order_id    = $lastId;
                         $obj->product_id    = $checkout['product_id'];
+                        $obj->product_variant_combination_id = $checkout['product_variant_combination_id'] ?? null;
+                        $combination = $checkout['combination'] ?? [];
+                        $obj->combination = is_array($combination)
+                            ? json_encode($combination)
+                            : ($combination ?: '[]');
                         $obj->qty           = $checkout['quantity'];
                         $obj->sub_total  = $checkout['sub_total'] ?? 0;
                         $obj->total  = $checkout['total'] ?? 0;
