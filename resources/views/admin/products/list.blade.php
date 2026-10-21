@@ -188,8 +188,9 @@
                                                 class="sort-icon ri-sort-asc"></i></th>
                                         <th class="sortable" data-column="products.buying_price">Price <i
                                                 class="sort-icon ri-sort-asc"></i></th>
-                                        <th>Status</th>
+                                        <th>Features</th>
                                         <th>Out of Stock</th>
+                                        <th>Status</th>
                                         <th>Publish</th>
                                         <!-- <th>Quantity</th> -->
                                         <th>T.Qty</th>

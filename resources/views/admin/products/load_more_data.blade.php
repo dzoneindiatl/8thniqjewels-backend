@@ -167,12 +167,12 @@
                     {{ $product->is_new_arrivals ? 'checked' : '' }}>
                 <br>
 
-                Is Active
+                {{-- Is Active
                 <input type="checkbox"
                     class="toggle-checkbox"
                     data-field="is_active"
                     data-product-id="{{ $product->id }}"
-                    {{ $product->is_active ? 'checked' : '' }}>
+                    {{ $product->is_active ? 'checked' : '' }}> --}}
             </td>
             <?php 
             $checked = 'checked';
@@ -190,10 +190,27 @@
                     <span class="slider round"></span>
                 </label>
             </td>
-            <td class="move-line publish-status 
+            <td class="move-line">
+                <label class="d-block mb-1">
+                    <input type="checkbox" disabled {{ $product->is_active == 2 ? 'checked' : '' }}>
+                    Draft
+                </label>
+                <label class="d-block mb-1">
+                    <input type="checkbox" disabled {{ $product->is_active == 1 ? 'checked' : '' }}>
+                    Publish
+                </label>
+                <label class="d-block mb-1">
+                    <input type="checkbox" disabled>
+                    Make to Order
+                </label>
+                <label class="d-block mb-0">
+                    <input type="checkbox" disabled {{ $product->in_stock != 1 ? 'checked' : '' }}>
+                    Out of Stock
+                </label>
+            </td>
+            <td class="move-line publish-status
                 {{ $product->is_active ? '' : 'text-danger' }}"
                 id="publish-{{ $product->id }}">
-                
                 {{ $product->is_active ? 'Published' : 'Unpublished' }}
             </td>
             <td class="move-line">
@@ -361,6 +378,3 @@
         });
     });
 </script>
-
-
-

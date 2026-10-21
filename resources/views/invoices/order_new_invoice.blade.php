@@ -176,9 +176,9 @@
                                     ? $checkout['itemTax']['tax_val']
                                     : '';
                                 $varitionsku = !empty($varitions) ? $varitions->sku : '';
-                                $varitionprice = !empty($varitions) ? $varitions->price : '';
+                                $varitionprice = (float) ($varitions->price ?? 0);
                                 $totalvarintprice += $varitionprice * $checkout['qty'];
-                                $varitionselling_price = !empty($varitions) ? $varitions->selling_price : '';
+                                $varitionselling_price = (float) ($varitions->selling_price ?? 0);
                                 $discount = ($varitionprice - $varitionselling_price) * $checkout['qty'];
                                 $prname = !empty($checkout['product']['name']) ? $checkout['product']['name'] : '';
                                 $totaldiscountvarint += ($varitionprice - $varitionselling_price) * $checkout['qty'];

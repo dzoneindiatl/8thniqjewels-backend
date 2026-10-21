@@ -43,7 +43,12 @@
         @else
             <?php
             $menus = getMenusFromAcl(); //Session()->get('acls');
-            
+              $isAffiliate = Auth::check()
+        && (int) Auth::user()->user_role_id === 5;
+
+    if ($isAffiliate) {
+        $menus = filterAffiliateMenus($menus);
+    }
             echo sideBarNavigationNew($menus);
             ?>
         @endif
