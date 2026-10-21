@@ -717,6 +717,7 @@ class OrderController extends Controller
             }
             
             if ($status == 'shipped') {  // confirmed
+            // print( "shipped");
                 $shippingItems = [];
                 $total_discount = 0;
                 $order = Order::find($id);
@@ -745,6 +746,19 @@ class OrderController extends Controller
                // if (isset($order['shipping_address_id'])) {
                  //   $shipping_id = $order['shipping_address_id'];
                     $shipAddress = UserAddress::getShippingAddressByUserID('shipping', $order->user_id);
+
+                    $orderShippingAddress = json_decode($order->shipping_address ?? '', true) ?: [];
+                    $shippingEmail = trim((string) ($orderShippingAddress['shipping_email'] ?? ''));
+                    if ($shippingEmail === '') {
+                        $shippingEmail = trim((string) ($shipAddress['shipping_email'] ?? ''));
+                    }
+                    if ($shippingEmail === '') {
+                        $shippingEmail = trim((string) ($order->user?->email ?? ''));
+                    }
+                    if (!filter_var($shippingEmail, FILTER_VALIDATE_EMAIL)) {
+                        throw new \RuntimeException('Cannot create the shipment because the customer shipping email is missing or invalid.');
+                    }
+                $shipAddress['shipping_email'] = $shippingEmail;
                // }
                
                 // Create Shiprocket Order
@@ -778,10 +792,13 @@ class OrderController extends Controller
                 // Resolves the class along with any dependencies automatically
                 $sequelHelper = app(SequelShippingHelper::class);
                 $sequelResponse = $sequelHelper->createSequelShipment($shippingDetails);
+
+            // dd($sequelResponse);
+
                
                 // Check shipping response
-                echo "<pre>"; print_r($sequelResponse); 
-                die;
+                // echo "<pre>"; print_r($sequelResponse); 
+                // die;
 
                 // Get order and shipment IDs
                 $shiprocket_order_id = !empty($shiprocketResponse['order_id']) ? $shiprocketResponse['order_id'] : '';
@@ -828,6 +845,8 @@ class OrderController extends Controller
             $message = "Order status changed successfully.";
             //}
         } catch (\Exception $e) {
+
+        // dd($e->getMessage());
             DB::rollback();
             $success = false;
             $message = 'message : '. $e->getMessage() . ' line no : '.$e->getLine() . ' getFile : '.$e->getFile() . ' getCode : '.$e->getCode() . ' getTraceAsString : '.$e->getTraceAsString();

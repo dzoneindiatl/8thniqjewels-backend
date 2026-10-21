@@ -60,14 +60,14 @@ class UsersController extends Controller
 
     public function index(Request $request)
     {
-		$DB = User::with(['addresses.city', 'addresses.state', 'addresses.country', 'orders', 'refundedhistorys', 'referralhistorys']);
+        $DB = User::with(['addresses.city', 'addresses.state', 'addresses.country', 'orders', 'refundedhistorys', 'referralhistorys']);
         $sortBy = $request->input('sortBy') ? $request->input('sortBy') : 'users.created_at';
         $order = $request->input('order') ? $request->input('order') : 'desc';
         $offset = !empty($request->input('offset')) ? $request->input('offset') : 0;
-        $limit =  !empty($request->input('limit')) ? $request->input('limit') : Config("Reading.records_per_page");
+        $limit = !empty($request->input('limit')) ? $request->input('limit') : Config("Reading.records_per_page");
 
         if ($request->all()) {
-            $searchData            =    $request->all();
+            $searchData = $request->all();
             unset($searchData['display']);
             unset($searchData['_token']);
             if (isset($searchData['order'])) {
@@ -117,7 +117,7 @@ class UsersController extends Controller
         $DB->where("users.is_deleted", 0);
         $DB->where('user_role_id', '!=', 3);
         $results = $DB->orderBy($sortBy, $order)->offset($offset)->limit($limit)->get();
-		$totalResults = $DB->count();
+        $totalResults = $DB->count();
         $roles = Role::all()->pluck('name', 'id');
         // if(!empty($results)) {
         //     foreach($results as &$result) {
@@ -130,23 +130,23 @@ class UsersController extends Controller
         //echo "<pre>@@@"; print_r($results); exit;
         if ($request->ajax()) {
 
-            return  View("$this->model.load_more_data", compact('results', 'totalResults', 'roles'));
+            return View("$this->model.load_more_data", compact('results', 'totalResults', 'roles'));
         } else {
 
-            return  View("admin.$this->model.index", compact('results', 'totalResults', 'roles'));
+            return View("admin.$this->model.index", compact('results', 'totalResults', 'roles'));
         }
     }
 
     public function customers(Request $request)
     {
-		$DB = User::with(['addresses.city', 'addresses.state', 'addresses.country', 'orders', 'refundedhistorys', 'referralhistorys']);
+        $DB = User::with(['addresses.city', 'addresses.state', 'addresses.country', 'orders', 'refundedhistorys', 'referralhistorys']);
         $sortBy = $request->input('sortBy') ? $request->input('sortBy') : 'users.created_at';
         $order = $request->input('order') ? $request->input('order') : 'desc';
         $offset = !empty($request->input('offset')) ? $request->input('offset') : 0;
-        $limit =  !empty($request->input('limit')) ? $request->input('limit') : Config("Reading.records_per_page");
+        $limit = !empty($request->input('limit')) ? $request->input('limit') : Config("Reading.records_per_page");
 
         if ($request->all()) {
-            $searchData            =    $request->all();
+            $searchData = $request->all();
             unset($searchData['display']);
             unset($searchData['_token']);
             if (isset($searchData['order'])) {
@@ -193,10 +193,30 @@ class UsersController extends Controller
             }
         }
 
-        $DB->where("users.is_deleted", 0);
-        $DB->where("users.user_role_id", 4 );
-        $results = $DB->orderBy($sortBy, $order)->offset($offset)->limit($limit)->get();
-		$totalResults = $DB->count();
+        $DB->where('users.is_deleted', 0);
+        $DB->where('users.user_role_id', 4);
+
+        $loggedInUser = auth()->user();
+
+        if ($loggedInUser && (int) $loggedInUser->user_role_id === 5) {
+            $customerIds = \App\Models\ReferralHistory::query()
+                ->where('referral_by', $loggedInUser->id)
+                ->where('is_deleted', 0)
+                ->pluck('referral_to');
+
+            $DB->whereIn('users.id', $customerIds);
+        }
+
+        // Count before pagination
+        $totalResults = (clone $DB)->count();
+
+        // Fetch the paginated customer records
+        $results = (clone $DB)
+            ->orderBy($sortBy, $order)
+            ->offset((int) $offset)
+            ->limit((int) $limit)
+            ->get();
+
         $roles = Role::all()->pluck('name', 'id');
         // if(!empty($results)) {
         //     foreach($results as &$result) {
@@ -209,23 +229,23 @@ class UsersController extends Controller
         //echo "<pre>@@@"; print_r($results); exit;
         if ($request->ajax()) {
 
-            return  View("$this->model.load_more_data", compact('results', 'totalResults', 'roles'));
+            return View("$this->model.load_more_data", compact('results', 'totalResults', 'roles'));
         } else {
 
-            return  View("admin.$this->model.index", compact('results', 'totalResults', 'roles'));
+            return View("admin.$this->model.index", compact('results', 'totalResults', 'roles'));
         }
     }
 
     public function affiliates(Request $request)
     {
-		$DB = User::with(['addresses.city', 'addresses.state', 'addresses.country', 'orders', 'refundedhistorys', 'referralhistorys']);
+        $DB = User::with(['addresses.city', 'addresses.state', 'addresses.country', 'orders', 'refundedhistorys', 'referralhistorys']);
         $sortBy = $request->input('sortBy') ? $request->input('sortBy') : 'users.created_at';
         $order = $request->input('order') ? $request->input('order') : 'desc';
         $offset = !empty($request->input('offset')) ? $request->input('offset') : 0;
-        $limit =  !empty($request->input('limit')) ? $request->input('limit') : Config("Reading.records_per_page");
+        $limit = !empty($request->input('limit')) ? $request->input('limit') : Config("Reading.records_per_page");
 
         if ($request->all()) {
-            $searchData            =    $request->all();
+            $searchData = $request->all();
             unset($searchData['display']);
             unset($searchData['_token']);
             if (isset($searchData['order'])) {
@@ -273,9 +293,13 @@ class UsersController extends Controller
         }
 
         $DB->where("users.is_deleted", 0);
-        $DB->where("users.user_role_id", 5 );
+        $DB->where("users.user_role_id", 5);
         $results = $DB->orderBy($sortBy, $order)->offset($offset)->limit($limit)->get();
-		$totalResults = $DB->count();
+        $totalResults = $DB->count();
+        $payableAmounts = $this->getAffiliatePayableAmounts($results->pluck('id')->all());
+        foreach ($results as $affiliate) {
+            $affiliate->referal_payable_amount = $payableAmounts[$affiliate->id] ?? 0;
+        }
         $roles = Role::all()->pluck('name', 'id');
         // if(!empty($results)) {
         //     foreach($results as &$result) {
@@ -286,12 +310,12 @@ class UsersController extends Controller
         // }
 
         // echo "<pre>@@@"; print_r($results); exit;
-        if ($request->ajax()) { 
+        if ($request->ajax()) {
 
-            return  View("$this->model.load_more_data", compact('results', 'totalResults', 'roles'));
+            return View("admin.$this->model.load_more_data_affiliates", compact('results', 'totalResults', 'roles'));
         } else {
 
-            return  View("admin.$this->model.affiliates", compact('results', 'totalResults', 'roles'));
+            return View("admin.$this->model.affiliates", compact('results', 'totalResults', 'roles'));
         }
     }
 
@@ -311,63 +335,131 @@ class UsersController extends Controller
             // if(!empty($userDetails->image)){
             //     $userDetails->image = Config('constant.USER_IMAGE_URL').$userDetails->image;
             // }
-            
+
             //$roles = Role::where('status', true)->pluck('name', 'id')->all();
             $roles = Role::pluck('name', 'id')->all();
             return View("admin.$this->model.edit", compact('userDetails', 'roles'));
         }
     }
+  
+
     public function save(Request $request)
     {
         $formData = $request->all();
+        $loggedInUser = auth()->user();
+
+        $isAffiliate = $loggedInUser
+            && (int) $loggedInUser->user_role_id === 5;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Step 1: Affiliate restrictions and percentage validation
+        |--------------------------------------------------------------------------
+        */
+        if ($isAffiliate) {
+            // Affiliates can create customers only.
+            $request->merge([
+                'roles' => 4,
+            ]);
+
+            $maxPercentage = (int) $loggedInUser->referal_max_percentage;
+
+            $request->validate([
+                'referal_max_percentage' => [
+                    'required',
+                    'integer',
+                    'min:1',
+                    'max:' . $maxPercentage,
+                ],
+            ]);
+        }
 
         if (!empty($formData)) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | Step 2: Validate the submitted form
+            |--------------------------------------------------------------------------
+            */
             $validator = Validator::make(
                 $request->all(),
-                array(
-
+                [
                     'name' => 'required',
                     'email' => 'required|email',
-                    'phone_number' =>  ['nullable', 'numeric', Rule::unique('users')->where('user_role_id', config('constant.ROLE_ID.CUSTOMER_ROLE_ID')), 'digits:10'],
+                    'phone_number' => [
+                        'nullable',
+                        'numeric',
+                        Rule::unique('users')->where(
+                            'user_role_id',
+                            config('constant.ROLE_ID.CUSTOMER_ROLE_ID')
+                        ),
+                        'digits:10',
+                    ],
                     // 'image' => 'nullable|mimes:jpg,jpeg,png',
                     'gender' => 'nullable',
                     'roles' => 'required',
                     'date_of_birth' => 'nullable',
-                    'password'      => ['required', Password::min(8)->letters()->mixedCase()->numbers()->symbols()],
+                    'password' => [
+                        'required',
+                        Password::min(8)
+                            ->letters()
+                            ->mixedCase()
+                            ->numbers()
+                            ->symbols(),
+                    ],
                     'confirm_password' => 'required|same:password',
-                ),
-                array(
-                    "name.required" => trans("The name field is required."),
-                    "phone_number.required" => trans("The phone number field is required."),
-                    "phone_number.numeric" => trans("The phone number should be numeric."),
-                    "email.required" => trans("The email field is required."),
-                    "email.email" => trans("The email must be a valid email address"),
-                    "email.unique" => trans("The email has already been taken."),
-                    "phone_number.unique" => trans("The phone number has already been taken."),
-                    // "image.required" => trans("The profile image field is required."),
-                    "date_of_birth.required" => trans("The date of birth field is required."),
-                    "gender.nullable" => trans("The gender field is required."),
-                    "roles.required" => trans("The role field is required."),
-                    //"image.mimes" => trans("The profile image should be of type jpeg,jpg,png."),
-                )
+                ],
+                [
+                    'name.required' => trans('The name field is required.'),
+                    'phone_number.required' => trans('The phone number field is required.'),
+                    'phone_number.numeric' => trans('The phone number should be numeric.'),
+                    'email.required' => trans('The email field is required.'),
+                    'email.email' => trans('The email must be a valid email address'),
+                    'email.unique' => trans('The email has already been taken.'),
+                    'phone_number.unique' => trans('The phone number has already been taken.'),
+                    // 'image.required' => trans('The profile image field is required.'),
+                    'date_of_birth.required' => trans('The date of birth field is required.'),
+                    'gender.nullable' => trans('The gender field is required.'),
+                    'roles.required' => trans('The role field is required.'),
+                    // 'image.mimes' => trans('The profile image should be of type jpeg,jpg,png.'),
+                ]
             );
-            if ($validator->fails()) {
-                return Redirect::back()->withErrors($validator)->withInput();
-            } else {
-                DB::beginTransaction();
 
+            if ($validator->fails()) {
+                return Redirect::back()
+                    ->withErrors($validator)
+                    ->withInput();
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Step 3: Begin database transaction
+            |--------------------------------------------------------------------------
+            */
+            DB::beginTransaction();
+
+            try {
+
+                /*
+                |--------------------------------------------------------------------------
+                | Step 4: Generate a unique customer slug
+                |--------------------------------------------------------------------------
+                */
                 $originalString = ucwords($request->name);
                 $lowercaseString = Str::lower($originalString);
                 $baseSlug = Str::slug($lowercaseString, '-');
 
-                // Check if the base slug already exists
                 $alreadyAddedName = User::where('slug', $baseSlug)->first();
 
                 if (!is_null($alreadyAddedName)) {
-                    // If the base slug exists and the name is being changed, add a suffix
                     $suffix = 1;
 
-                    while (User::where('slug', $baseSlug . '-' . $suffix)->exists()) {
+                    while (
+                        User::where(
+                            'slug',
+                            $baseSlug . '-' . $suffix
+                        )->exists()
+                    ) {
                         $suffix++;
                     }
 
@@ -376,74 +468,206 @@ class UsersController extends Controller
                     $slug = $baseSlug;
                 }
 
+                /*
+                |--------------------------------------------------------------------------
+                | Step 5: Handle uploaded image
+                |--------------------------------------------------------------------------
+                */
                 $image = $request->file('image');
+                $imageName = '';
+
                 if (isset($image)) {
                     $imageName = time() . '.' . $image->getClientOriginalExtension();
-                    //$image->move(public_path('uploads/users'), $imageName); // save in public/uploads
-                    $image->move(Config('constant.USER_IMAGE_ROOT_PATH'), $imageName);
+
+                    $image->move(
+                        Config('constant.USER_IMAGE_ROOT_PATH'),
+                        $imageName
+                    );
                 }
 
+                /*
+                |--------------------------------------------------------------------------
+                | Step 6: Create the user
+                |--------------------------------------------------------------------------
+                */
+                $obj = new User();
 
-                $obj                                = new User;
-                $obj->user_role_id                  = $request->input('roles');
-                $obj->slug                          = !empty($slug) ? $slug : "";
-                $obj->name                          = $request->input('name');
-                $obj->email                         = $request->input('email');
-                $obj->phone_number                  = $request->input('phone_number');
-                $obj->wallet_avl_balance            = $request->input('wallet_avl_balance');
-                $obj->date_of_birth =   !empty($request->input('date_of_birth')) ? date('Y-m-d', strtotime($request->input('date_of_birth'))) : NULL;
+                $obj->user_role_id = $request->input('roles');
+                $obj->slug = !empty($slug) ? $slug : '';
+                $obj->name = $request->input('name');
+                $obj->email = $request->input('email');
+                $obj->phone_number = $request->input('phone_number');
+                $obj->wallet_avl_balance = $request->input('wallet_avl_balance');
+
+                $obj->date_of_birth = !empty($request->input('date_of_birth'))
+                    ? date('Y-m-d', strtotime($request->input('date_of_birth')))
+                    : null;
+
                 $obj->gender = $request->input('gender');
-                $obj->password =  Hash::make($request->input('password'));
-                $obj->image =  $imageName ?? '';
+                $obj->password = Hash::make($request->input('password'));
+                $obj->image = $imageName;
 
                 $obj->is_verified = 1;
                 $obj->is_active = 1;
                 $obj->is_approved = 1;
 
+                /*
+                |--------------------------------------------------------------------------
+                | Step 7: Assign the referral percentage to the customer
+                |--------------------------------------------------------------------------
+                */
+                if ($isAffiliate && (int) $obj->user_role_id === 4) {
+
+                    // Save the percentage selected by the affiliate.
+                    $obj->referal_max_percentage = (int) $request->input(
+                        'referal_max_percentage'
+                    );
+
+                } elseif ($request->filled('referal_max_percentage')) {
+
+                    // Preserve the existing admin assignment logic.
+                    $obj->referal_max_percentage = $request->input(
+                        'referal_max_percentage'
+                    );
+                }
+
                 $obj->save();
+
                 $lastId = $obj->id;
-                // $obj->syncRoles($request->roles);
+
+                /*
+                |--------------------------------------------------------------------------
+                | Step 8: Link the customer to the logged-in affiliate
+                |--------------------------------------------------------------------------
+                */
+                if (
+                    $isAffiliate &&
+                    (int) $obj->user_role_id === 4
+                ) {
+                    ReferralHistory::firstOrCreate(
+                        [
+                            'referral_by' => $loggedInUser->id,
+                            'referral_to' => $obj->id,
+                        ],
+                        [
+                            'is_deleted' => 0,
+                        ]
+                    );
+                }
+
+                /*
+                |--------------------------------------------------------------------------
+                | Step 9: Assign the user's role
+                |--------------------------------------------------------------------------
+                */
                 if (!empty($lastId)) {
+
                     $role = Role::find($request->roles);
+
                     if ($role) {
                         $obj->assignRole($role->name);
                     }
-                    $randomLetters = strtoupper(Str::random(3));
 
-                    $referralCode = $slug . $randomLetters . $lastId;
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Step 10: Generate the referral code
+                    |--------------------------------------------------------------------------
+                    */
+                    if (
+                        $isAffiliate &&
+                        (int) $obj->user_role_id === 4
+                    ) {
 
-                    // Save the referral code to the user or do whatever is needed
-                    User::where('id', $lastId)->update(["referral_code" => $referralCode]);
+                        // Affiliate name, affiliate ID, assigned percentage,
+                        // and customer ID.
+                        $affiliateName = Str::slug(
+                            $loggedInUser->name,
+                            '-'
+                        );
 
-                    // if (!empty($request->input('email'))) {
-                    //     $settingsEmail         =  Config::get('Site.from_email');
-                    //     $full_name            =  $request->input('name');
-                    //     $email              =  $request->input('email');
-                    //     $emailActions        =     EmailAction::where('action', '=', 'registration')->get()->toArray();
-                    //     $emailTemplates        =     EmailTemplate::where('action_id', '=', $emailActions[0])->select("name", "action", "subject", "body")->get()->toArray();
+                        $affiliateId = $loggedInUser->id;
 
-                    //     $cons                 =     explode(',', $emailActions[0]['options']);
-                    //     $constants             =     array();
-                    //     foreach ($cons as $key => $val) {
-                    //         $constants[] = '{' . $val . '}';
-                    //     }
-                    //     $subject             =  $emailTemplates[0]['subject'];
-                    //     $rep_Array             =     array($full_name);
-                    //     $messageBody        =   str_replace($constants, $rep_Array, $emailTemplates[0]['body']);
-                    //     $this->sendMail($email, $full_name, $subject, $messageBody, $settingsEmail);
-                    // }
+                        // Use the percentage assigned to THIS customer.
+                        $assignedPercentage = (int) $obj->referal_max_percentage;
 
+                        $referralCode = sprintf(
+                            '%s-%d-%d-%d',
+                            $affiliateName,
+                            $affiliateId,
+                            $assignedPercentage,
+                            $lastId
+                        );
+
+                    } else {
+
+                        // Preserve the existing admin-created customer format.
+                        $randomLetters = strtoupper(Str::random(3));
+
+                        $referralCode = $slug . $randomLetters . $lastId;
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Step 11: Save the referral code
+                    |--------------------------------------------------------------------------
+                    */
+                    $obj->referral_code = $referralCode;
+                    $obj->save();
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Step 12: Commit the transaction
+                    |--------------------------------------------------------------------------
+                    */
                     DB::commit();
+
                 } else {
-                    DB::rollback();
-                    Session()->flash('flash_notice', 'Something Went Wrong');
+
+                    DB::rollBack();
+
+                    Session()->flash(
+                        'flash_notice',
+                        'Something Went Wrong'
+                    );
+
                     return Redirect::route('admin-admin_users.index');
                 }
-                Session()->flash('flash_notice', trans("User saved successfully."));
+
+                /*
+                |--------------------------------------------------------------------------
+                | Step 13: Success response
+                |--------------------------------------------------------------------------
+                */
+                Session()->flash(
+                    'flash_notice',
+                    trans('User saved successfully.')
+                );
+
                 return Redirect::route('admin-admin_users.index');
+
+            } catch (\Throwable $e) {
+
+                /*
+                |--------------------------------------------------------------------------
+                | Step 14: Roll back if an exception occurs
+                |--------------------------------------------------------------------------
+                */
+                DB::rollBack();
+
+                report($e);
+
+                Session()->flash(
+                    'flash_notice',
+                    'Something Went Wrong'
+                );
+
+                return Redirect::back()->withInput();
             }
         }
+
+        return Redirect::route('admin-admin_users.index');
     }
+
     public function update(Request $request, $enuserid = null)
     {
         $model = User::find($enuserid);
@@ -463,8 +687,8 @@ class UsersController extends Controller
                         'gender' => 'nullable',
                         'roles' => 'required',
                         // 'date_of_birth' => 'required',
-                        'password'      =>  !empty(!empty($request->password)) ? [Password::min(8)->letters()->mixedCase()->numbers()->symbols()] : 'nullable',
-                        'confirm_password' =>    !empty(!empty($request->password)) ?  'same:password' : 'nullable',
+                        'password' => !empty(!empty($request->password)) ? [Password::min(8)->letters()->mixedCase()->numbers()->symbols()] : 'nullable',
+                        'confirm_password' => !empty(!empty($request->password)) ? 'same:password' : 'nullable',
 
                     ),
                     array(
@@ -494,7 +718,7 @@ class UsersController extends Controller
                     // Check if the base slug already exists
                     $alreadyAddedName = User::where('slug', $baseSlug)->first();
 
-                    if (!is_null($alreadyAddedName)) {
+                    if (!is_null($alreadyAddedName)) {  
                         // If the base slug exists and the name is being changed, add a suffix
                         if ($alreadyAddedName->name !== $originalString) {
                             $suffix = 1;
@@ -512,18 +736,18 @@ class UsersController extends Controller
                         $slug = $baseSlug;
                     }
 
-                    $obj                                = $model;
-                    $obj->name                          = $request->input('name');
-                    $obj->slug                          = !empty($slug) ? $slug : "";
-                    $obj->email                         = $request->input('email');
-                    $obj->phone_number                  = $request->input('phone_number');
-                    $obj->wallet_avl_balance            = $request->input('wallet_avl_balance');
+                    $obj = $model;
+                    $obj->name = $request->input('name');
+                    $obj->slug = !empty($slug) ? $slug : "";
+                    $obj->email = $request->input('email');
+                    $obj->phone_number = $request->input('phone_number');
+                    $obj->wallet_avl_balance = $request->input('wallet_avl_balance');
 
-                    $obj->date_of_birth =   !empty($request->input('date_of_birth')) ? date('Y-m-d', strtotime($request->input('date_of_birth'))) : NULL;
+                    $obj->date_of_birth = !empty($request->input('date_of_birth')) ? date('Y-m-d', strtotime($request->input('date_of_birth'))) : NULL;
                     $obj->gender = $request->input('gender');
-                    $obj->wallet_active                 = @$request->input('wallet_active');
-                    $obj->user_role_id                  = $request->input('roles');
-                    $obj->referal_max_percentage                  = @$request->input('referal_max_percentage');
+                    $obj->wallet_active = @$request->input('wallet_active');
+                    $obj->user_role_id = $request->input('roles');
+                    $obj->referal_max_percentage = @$request->input('referal_max_percentage');
 
 
                     // if ($request->hasFile('image')) {
@@ -547,13 +771,13 @@ class UsersController extends Controller
                         $imageName = time() . '.' . $image->getClientOriginalExtension();
                         //$image->move(public_path('uploads/users'), $imageName); // save in public/uploads
                         $image->move(Config('constant.USER_IMAGE_ROOT_PATH'), $imageName);
-                        $obj->image =  $imageName ?? '';
+                        $obj->image = $imageName ?? '';
                     }
 
 
 
                     if (!empty($request->password)) {
-                        $obj->password                      = Hash::make($request->password);
+                        $obj->password = Hash::make($request->password);
                     }
                     $obj->save();
                     //$obj->syncRoles($request->roles);
@@ -693,27 +917,27 @@ class UsersController extends Controller
     {
         if (!empty($request->user_id)) {
             $user_id = $request->user_id;
-            $userLoginHistory = UserLoginHistory::where('user_id', $user_id)->orderBy('id','DESC')->limit(5)->get();
+            $userLoginHistory = UserLoginHistory::where('user_id', $user_id)->orderBy('id', 'DESC')->limit(5)->get();
             $historyHtml = '';
-            if(!empty($userLoginHistory)){
-                $i= 1;
-                foreach($userLoginHistory as $result){
-                    $user_name= '';
+            if (!empty($userLoginHistory)) {
+                $i = 1;
+                foreach ($userLoginHistory as $result) {
+                    $user_name = '';
                     $userObj = User::find($result->user_id);
-                    if(!empty($userObj)){
-                        $user_name  = $userObj->name;
+                    if (!empty($userObj)) {
+                        $user_name = $userObj->name;
                     }
- 
+
                     $historyHtml .= '<tr class="list-data-row" data-total-count="4">
-                        <td>'.$i.'</td>
-                        <td>'. $user_name .'</td>
-                        <td>'. $result->ip .'</td>
-                        <td>'. $result->login_time .'</td>
+                        <td>' . $i . '</td>
+                        <td>' . $user_name . '</td>
+                        <td>' . $result->ip . '</td>
+                        <td>' . $result->login_time . '</td>
                     </tr>';
                     $i++;
                 }
             } else {
-                $historyHtml .='<tr><td>Record Not Found</td></tr>';
+                $historyHtml .= '<tr><td>Record Not Found</td></tr>';
             }
             return $historyHtml;
         }
@@ -784,15 +1008,15 @@ class UsersController extends Controller
         ]);
         $user_address = UserAddress::find($addressId);
         $user_address->user_id = $request->user_id ?? '';
-        $user_address->name    = $request->name     ?? '';
-        $user_address->email    = $request->email     ?? '';
-        $user_address->phone_number    = $request->phone_number     ?? '';
-        $user_address->alternate_number    = $request->alternate_number     ?? '';
-        $user_address->country_id    = $request->country     ?? '';
-        $user_address->address    = $request->address     ?? '';
-        $user_address->postal_code    = $request->postal_code     ?? '';
-        $user_address->city_id    = $request->city     ?? '';
-        $user_address->state_id    = $request->state ?? '';
+        $user_address->name = $request->name ?? '';
+        $user_address->email = $request->email ?? '';
+        $user_address->phone_number = $request->phone_number ?? '';
+        $user_address->alternate_number = $request->alternate_number ?? '';
+        $user_address->country_id = $request->country ?? '';
+        $user_address->address = $request->address ?? '';
+        $user_address->postal_code = $request->postal_code ?? '';
+        $user_address->city_id = $request->city ?? '';
+        $user_address->state_id = $request->state ?? '';
         $user_address->landmark = $request->landmark ?? '';
 
         // dd($user_address);
@@ -825,15 +1049,15 @@ class UsersController extends Controller
 
         $user_address = new UserAddress;
         $user_address->user_id = $request->user_id ?? '';
-        $user_address->name    = $request->name     ?? '';
-        $user_address->email    = $request->email     ?? '';
-        $user_address->phone_number    = $request->phone_number     ?? '';
-        $user_address->alternate_number    = $request->alternate_number     ?? '';
-        $user_address->country_id    = $request->country     ?? '';
-        $user_address->address    = $request->address     ?? '';
-        $user_address->postal_code    = $request->postal_code     ?? '';
-        $user_address->city_id    = $request->city     ?? '';
-        $user_address->state_id    = $request->state ?? '';
+        $user_address->name = $request->name ?? '';
+        $user_address->email = $request->email ?? '';
+        $user_address->phone_number = $request->phone_number ?? '';
+        $user_address->alternate_number = $request->alternate_number ?? '';
+        $user_address->country_id = $request->country ?? '';
+        $user_address->address = $request->address ?? '';
+        $user_address->postal_code = $request->postal_code ?? '';
+        $user_address->city_id = $request->city ?? '';
+        $user_address->state_id = $request->state ?? '';
         $user_address->landmark = $request->landmark ?? '';
 
         // dd($user_address);
@@ -871,36 +1095,60 @@ class UsersController extends Controller
     public function getAffilateById($userId)
     {
         try {
-            $result = [];
             $affliateDetails = User::where('id', $userId)->where('is_deleted', '0')->first();
-            return response()->json(['data' => $affliateDetails, 'success' => true, 'message' => 'Data fetched'], 200);
+            if (!$affliateDetails) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Affiliate not found.',
+                ], 404);
+            }
+
+            $payableAmounts = $this->getAffiliatePayableAmounts([(int) $affliateDetails->id]);
+            return response()->json([
+                'data' => [
+                    'id' => $affliateDetails->id,
+                    'name' => $affliateDetails->name,
+                    'payable_amount' => $payableAmounts[$affliateDetails->id] ?? 0,
+                ],
+                'success' => true,
+                'message' => 'Data fetched',
+            ]);
         } catch (Exception $e) {
             Log::error($e);
-            return response()->json(['data' => [], 'success' => false, 'message' => $e->getMessage() ], 200);
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to fetch affiliate payment details.',
+            ], 500);
         }
     }
 
     public function saveAffiliatePayment(Request $request)
     {
-        $validator = Validator::make($request->all(),
-        [
-            'affiliate_id' => 'required|numeric',
-            'payable_amount' => 'required|numeric',
-            'paid_amount' => 'required|numeric',
-            'description' => 'nullable|string',
-            'transaction_id' => 'required|string|max:255',
-            'payment_type' => 'required',
-        ]);
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'affiliate_id' => 'required|integer|exists:users,id',
+                'paid_amount' => 'required|numeric|min:0.01',
+                'description' => 'nullable|string',
+                'transaction_id' => 'required|string|max:255',
+                'payment_type' => 'required',
+            ]
+        );
 
         if ($validator->fails()) {
-            return redirect()->back()->withErrors($validator)->withInput();           
+            return redirect()->back()->withErrors($validator)->withInput();
         }
 
-        $outstanding_amount	 = ($request->payable_amount - $request->paid_amount);
-        if( $outstanding_amount < 0){
+        $affiliateId = (int) $request->affiliate_id;
+        $payableAmounts = $this->getAffiliatePayableAmounts([$affiliateId]);
+        $payableAmount = $payableAmounts[$affiliateId] ?? 0;
+        $paidAmount = (float) $request->paid_amount;
+        $outstanding_amount = round($payableAmount - $paidAmount, 2);
+        if ($outstanding_amount < 0) {
             return redirect()->back()->with(['error' => 'You cant pay more than payable amount']);
         }
 
+        $imageName = '';
         $image = $request->file('image');
         if (isset($image)) {
             $imageName = time() . '.' . $image->getClientOriginalExtension();
@@ -909,25 +1157,66 @@ class UsersController extends Controller
         }
 
         $AffliatePaymentHistory = new AffliatePaymentHistory;
-        $AffliatePaymentHistory->affiliate_id = $request->affiliate_id ?? '';
-        $AffliatePaymentHistory->payable_amount    = $request->payable_amount     ?? '';
-        $AffliatePaymentHistory->paid_amount    = $request->paid_amount     ?? '';
-        $AffliatePaymentHistory->outstanding_amount    = $outstanding_amount     ?? '';
-        $AffliatePaymentHistory->description    = $request->description     ?? '';
-        $AffliatePaymentHistory->transaction_id    = $request->transaction_id     ?? '';
-        $AffliatePaymentHistory->payment_type    = $request->payment_type     ?? '';
-        $AffliatePaymentHistory->file    = $imageName     ?? '';
-        
+        $AffliatePaymentHistory->affiliate_id = $affiliateId;
+        $AffliatePaymentHistory->payable_amount = $payableAmount;
+        $AffliatePaymentHistory->paid_amount = $paidAmount;
+        $AffliatePaymentHistory->outstanding_amount = $outstanding_amount ?? '';
+        $AffliatePaymentHistory->description = $request->description ?? '';
+        $AffliatePaymentHistory->transaction_id = $request->transaction_id ?? '';
+        $AffliatePaymentHistory->payment_type = $request->payment_type ?? '';
+        $AffliatePaymentHistory->file = $imageName ?? '';
+
         // dd($AffliatePaymentHistory);
         if ($AffliatePaymentHistory->save()) {
             User::where('id', $request->affiliate_id)->update(['referal_payable_amount' => $outstanding_amount]);
 
-           return redirect()->back()->with(['success' => 'Payment has been added our dataabse successfully' ]);
+            return redirect()->back()->with(['success' => 'Payment has been added our dataabse successfully']);
         } else {
-            return redirect()->back()->with(['error' => 'Something went wrong: ' . $e->getMessage()]);
+            return redirect()->back()->with(['error' => 'Something went wrong while saving the affiliate payment.']);
         }
     }
-    
+
+    private function getAffiliatePayableAmounts(array $affiliateIds): array
+    {
+        $affiliateIds = array_values(array_unique(array_map('intval', $affiliateIds)));
+        if (!$affiliateIds) {
+            return [];
+        }
+
+        $earnedAmounts = DB::table('orders')
+            ->join('users as referred_customers', 'referred_customers.id', '=', 'orders.user_id')
+            ->join('users as affiliates', 'affiliates.id', '=', 'orders.referal_user_id')
+            ->leftJoin('coupons', 'coupons.id', '=', 'orders.coupon_name')
+            ->whereIn('orders.referal_user_id', $affiliateIds)
+            ->where('orders.is_referal', 1)
+            ->where('orders.status', 'delivered')
+            ->groupBy('orders.referal_user_id')
+            ->selectRaw(
+                'orders.referal_user_id as affiliate_id, ' .
+                'SUM(GREATEST(COALESCE(orders.sub_total, 0) - COALESCE(orders.shippingcharge, 0), 0) * ' .
+                'GREATEST(COALESCE(NULLIF(referred_customers.referal_max_percentage, 0), affiliates.referal_max_percentage, 0) - ' .
+                'CASE WHEN coupons.discount_type = \'percentage\' THEN COALESCE(coupons.discount_value, 0) ' .
+                'WHEN COALESCE(orders.sub_total, 0) > 0 THEN COALESCE(orders.coupon_discount, 0) * 100 / orders.sub_total ' .
+                'ELSE 0 END, 0) / 100) as earned_amount'
+            )
+            ->pluck('earned_amount', 'affiliate_id');
+
+        $paidAmounts = DB::table('affliate_payment_histories')
+            ->whereIn('affiliate_id', $affiliateIds)
+            ->groupBy('affiliate_id')
+            ->selectRaw('affiliate_id, SUM(COALESCE(paid_amount, 0)) as paid_amount')
+            ->pluck('paid_amount', 'affiliate_id');
+
+        $payableAmounts = [];
+        foreach ($affiliateIds as $affiliateId) {
+            $earned = (float) ($earnedAmounts[$affiliateId] ?? 0);
+            $paid = (float) ($paidAmounts[$affiliateId] ?? 0);
+            $payableAmounts[$affiliateId] = round(max($earned - $paid, 0), 2);
+        }
+
+        return $payableAmounts;
+    }
+
 
 
     public function editReview(Request $request, $token = null)
@@ -1087,7 +1376,7 @@ class UsersController extends Controller
         $refunded = RefundedHistory::find($modelId);
         if ($refunded) {
             $currentStatus = $refunded->is_active;
-            $user_id =  $refunded->user_id;
+            $user_id = $refunded->user_id;
             if (isset($currentStatus) && $currentStatus == 0) {
                 $NewStatus = 1;
             } else {

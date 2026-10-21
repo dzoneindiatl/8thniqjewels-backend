@@ -33,13 +33,7 @@ $statusPermission   = functionCheckPermission("UsersController@changeStatus");
         @endphp
     </td>
     <td>
-        @php
-        // $lastPaymentHistroy = \App\Models\AffliatePaymentHistory::where('affiliate_id', $result->id)->orderBy('id','desc')->first();
-        // echo @$lastPaymentHistroy?->outstanding_amount;
-       $lastPaymentHistroy = \App\Models\User::where('id', $result->id)->orderBy('id','desc')->first();
-            echo @$lastPaymentHistroy?->referal_payable_amount;
-        
-        @endphp
+        {{ number_format((float) ($result->referal_payable_amount ?? 0), 2) }}
     </td>
     
 

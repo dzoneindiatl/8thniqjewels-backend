@@ -387,4 +387,30 @@ if (!function_exists('refundPayment')) {
             return $attribute;
         }
     }
+
+
+
+if (!function_exists('filterAffiliateMenus')) {
+    function filterAffiliateMenus($menus)
+    {
+        foreach ($menus as $menu) {
+            $menuName = strtolower(trim($menu->title ?? ''));
+
+            if ($menuName === 'users management') {
+                $menu->children = array_values(
+                    array_filter(
+                        $menu->children ?? [],
+                        function ($child) {
+                            return (int) $child->id === 100;
+                        }
+                    )
+                );
+            }
+        }
+
+        return $menus;
+    }
+}
+
+
 }

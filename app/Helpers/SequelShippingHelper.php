@@ -57,9 +57,14 @@ class SequelShippingHelper
 
         $requestBody = json_encode($requestBody, JSON_PRETTY_PRINT);
 
+        // print("Request Body: " . $requestBody . "\n");
+        // dd("Request Body: " . $requestBody . "\n");
+
         try {
 
             $url = env('SEQUEL247_ENDPOINT') ."api/create_address";
+            // dd("Request URL: " . $url . "\n");
+            
             $ch = curl_init($url);
 
             // Set multiple options at once using curl_setopt_array
@@ -73,6 +78,7 @@ class SequelShippingHelper
                 ]
             ]);
             $response = curl_exec($ch);
+            // dd($response);
             curl_close($ch);
 
             // $response = Http::withToken(env('SEQUEL247_TOKEN'))->withHeaders(['Content-Type' => 'application/json'])->post(env('SEQUEL247_ENDPOINT') . 'api/create_address', $requestBody);

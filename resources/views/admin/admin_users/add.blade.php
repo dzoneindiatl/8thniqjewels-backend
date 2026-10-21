@@ -138,28 +138,89 @@
                                                         </div>
                                                     @endif
                                                 </div>
-                                                <div class="col-xl-6">
-                                                    <label for="roles" class="form-label">
-                                                        <span class="text-danger">*</span> Role
-                                                    </label>
-                                                    <select name="roles" id="roles"
-                                                        class="form-control @error('roles') is-invalid @enderror">
-                                                        <option value="" disabled
-                                                            {{ old('roles', $userDetails->roles ?? '') == '' ? 'selected' : '' }}>
-                                                            Select Role
-                                                        </option>
-                                                        @foreach ($roles as $key => $role)
-                                                            <option value="{{ $key }}"
-                                                                {{ old('roles', $userDetails->roles ?? '') == $key ? 'selected' : '' }}>
-                                                                {{ $role }}
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
+                                            <div class="col-xl-6">
+    <label for="roles" class="form-label">
+        <span class="text-danger">*</span> Role
+    </label>
 
-                                                    @error('roles')
-                                                        <div class="invalid-feedback">{{ $message }}</div>
-                                                    @enderror
-                                                </div>
+    @php
+        $loggedInUser = auth()->user();
+        $isAffiliate = $loggedInUser
+            && (int) $loggedInUser->user_role_id === 5;
+    @endphp
+
+    <select name="roles" id="roles"
+        class="form-control @error('roles') is-invalid @enderror"
+        required>
+
+        @if ($isAffiliate)
+            {{-- Affiliate can create customers only --}}
+            <option value="4" selected>Customer</option>
+        @else
+            <option value="" disabled
+                {{ old('roles', $userDetails->roles ?? '') == '' ? 'selected' : '' }}>
+                Select Role
+            </option>
+
+            @foreach ($roles as $key => $role)
+                <option value="{{ $key }}"
+                    {{ old('roles', $userDetails->roles ?? '') == $key ? 'selected' : '' }}>
+                    {{ $role }}
+                </option>
+            @endforeach
+        @endif
+
+    </select>
+
+    @error('roles')
+        <div class="invalid-feedback">{{ $message }}</div>
+    @enderror
+</div>
+@php
+    $loggedInUser = auth()->user();
+
+    $isAffiliate = $loggedInUser
+        && (int) $loggedInUser->user_role_id === 5;
+
+    $maxReferralPercentage = $isAffiliate
+        ? (int) ($loggedInUser->referal_max_percentage ?? 0)
+        : 0;
+@endphp
+
+@if ($isAffiliate)
+    <div class="col-xl-6">
+        <label for="referal_max_percentage" class="form-label">
+            <span class="text-danger">*</span> Referral Percentage
+        </label>
+
+        <select
+            name="referal_max_percentage"
+            id="referal_max_percentage"
+            class="form-control @error('referal_max_percentage') is-invalid @enderror"
+            required
+        >
+            <option value="">Select Referral Percentage</option>
+
+            @for ($i = 1; $i <= $maxReferralPercentage; $i++)
+                <option
+                    value="{{ $i }}"
+                    {{ old('referal_max_percentage') == $i ? 'selected' : '' }}
+                >
+                    {{ $i }}%
+                </option>
+            @endfor
+        </select>
+
+        @error('referal_max_percentage')
+            <div class="invalid-feedback">{{ $message }}</div>
+        @enderror
+
+        <small class="text-muted">
+            Your maximum allowed referral percentage is
+            {{ $maxReferralPercentage }}%.
+        </small>
+    </div>
+@endif
 
                                                 <div class="col-xl-6">
                                                     <label for="password" class="form-label"><span class="text-danger">*

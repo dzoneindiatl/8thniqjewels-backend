@@ -394,6 +394,8 @@
 
 
         /* get affilaite detail by id */
+        var affiliateDetailUrl = @json(route('admin-admin_users.get-affiliate', ['id' => '__AFFILIATE_ID__']));
+
         $(document).on('click', '.get-affiliate-detail', function () {
             // Show the modal first
             $('#paymentPopup').modal('show');
@@ -407,16 +409,29 @@
             var affiliate_id = $(this).attr('data-id');
             if (affiliate_id) {
                 $.ajax({
-                    url: '/get-affiliate/' + affiliate_id,
+                    url: affiliateDetailUrl.replace('__AFFILIATE_ID__', encodeURIComponent(affiliate_id)),
                     type: 'GET',
                     success: function (response) {
-                        if(response){
+                        if (response && response.success && response.data) {
                             $('#affiliate_id').val(response.data.id).trigger('change');;
                             $('.affiliate').val(response.data.name).trigger('change');;
                             $('.affiliate').prop('readonly',true).trigger('change');;
-                            $('.payable_amount').val(response.data.referal_payable_amount);
+                            $('.payable_amount').val(response.data.payable_amount);
                             $('.payable_amount').prop('readonly',true);
+                        } else {
+                            $('.payable_amount').val('');
+                            Swal.fire('Unable to load affiliate', response.message || 'Please try again.', 'error');
                         } 
+                    },
+                    error: function (xhr) {
+                        $('.payable_amount').val('');
+                        Swal.fire(
+                            'Unable to load affiliate',
+                            xhr.responseJSON && xhr.responseJSON.message
+                                ? xhr.responseJSON.message
+                                : 'Please try again.',
+                            'error'
+                        );
                     }
                 });
             } 

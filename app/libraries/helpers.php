@@ -140,95 +140,223 @@ if (!function_exists('sideBarNavigation')) {
   }
 }
 
+
+
 function sideBarNavigationNew($menus, $children2Data = "")
 {
-  //echo '<pre>';print_r($menus);die;
-  $website_url = Config('constant.WEBSITE_URL'); // Base URL
-  $treeView = ""; // Initialize treeView HTML
-  $segment3 = Request()->segment(1); // Current route segment 3
-  $segment4 = Request()->segment(2); // Current route segment 4
-  $user = auth()->user(); // Authenticated user
-  //dd($user->getAllPermissions());
-  if (!empty($menus)) {
-    // Open either main menu or child menu
-    $treeView .= $children2Data ? "<ul class='slide-menu child1'>" : "<ul class='main-menu'>";
+    $website_url = Config('constant.WEBSITE_URL');
+    $treeView = "";
+
+    $segment3 = Request()->segment(1);
+    $segment4 = Request()->segment(2);
+
+    $user = auth()->user();
+
+    // Check whether the logged-in user is an Affiliate.
+    $isAffiliate = $user && (int) $user->user_role_id === 5;
+
+    if (empty($menus)) {
+        return $treeView;
+    }
+
+    $treeView .= $children2Data
+        ? "<ul class='slide-menu child1'>"
+        : "<ul class='main-menu'>";
 
     foreach ($menus as $menu) {
-      // Check if the menu has children
-      $hasChildren = property_exists($menu, 'children') && !empty($menu->children);
 
-      // Skip menu item if user does not have permission
-      //echo $menu->permission_name;die;
+        // Determine whether this menu has children.
+        $hasChildren = property_exists($menu, 'children')
+            && !empty($menu->children);
 
-      if ($menu->title === 'Dashboard') {
-        // Proceed to render the dashboard without permission check
-        $treeView .= renderMenuItem($menu, $segment4, $hasChildren);
-        if ($hasChildren) {
-          $treeView .= sideBarNavigationNew($menu->children, true);
-        }
-        continue;
-      }
+        /*
+         * AFFILIATE MENU FILTER
+         *
+         * Users Management: ACL ID 23
+         * Customer List:    ACL ID 100
+         * Add New User:     ACL ID 25
+         *
+         * Affiliates should see only these two child menus.
+         */
+        if ($isAffiliate && (int) ($menu->id ?? 0) === 23) {
 
-      $alwaysShowParents = ['Masters', 'System Management', 'Settings'];
-      if (in_array($menu->title, $alwaysShowParents)) {
-        // Render parent menu
-        $treeView .= renderMenuItem($menu, $segment4, $hasChildren);
+            $allowedChildIds = [100, 25];
 
-        // Check child permissions
-        if ($hasChildren) {
-          $treeView .= "<ul class='slide-menu child1'>";
-          foreach ($menu->children as $child) {
-            // Check permission for child menu
-            if (isset($child->permission_name) && !$user->can($child->permission_name)) {
-              continue; // Skip child menu item if user doesn't have permission
+            $menu->children = array_values(
+                array_filter(
+                    $menu->children ?? [],
+                    function ($child) use ($allowedChildIds) {
+                        return in_array(
+                            (int) ($child->id ?? 0),
+                            $allowedChildIds,
+                            true
+                        );
+                    }
+                )
+            );
+
+            $hasChildren = !empty($menu->children);
+
+            // Skip Users Management if no allowed children exist.
+            if (!$hasChildren) {
+                continue;
             }
-            $treeView .= renderMenuItem($child, $segment4, false); // Render child menu
-          }
-          $treeView .= "</ul>";
         }
 
-        continue; // Skip further processing for parent menu
-      }
+        // Dashboard is always visible.
+        if (($menu->title ?? '') === 'Dashboard') {
 
-      if (!isset($menu->permission_name) || !$user->can($menu->permission_name)) {
-        continue; // Skip this menu item if permission is not set or user doesn't have permission
-      }
+            $treeView .= renderMenuItem(
+                $menu,
+                $segment4,
+                $hasChildren
+            );
 
-      // Set the path for the menu item
-      $menuPath = $menu->path ?? 'javascript:void(0);'; // Default to 'javascript:void(0);'
-      $fullPath = str_contains($menuPath, 'javascript') ? $menuPath : url($menuPath);
-      // Check if the menu or any of its children is active
-      $isActive = ($segment4 === explode('/', $menuPath)[0] ?? '') ||
-        ($hasChildren && array_filter($menu->children, function ($child) use ($segment4) {
-          return $segment4 === explode('/', $child->path)[1] ?? '';
-        }));
+            if ($hasChildren) {
+                $treeView .= sideBarNavigationNew(
+                    $menu->children,
+                    true
+                );
+            }
 
-      // Determine classes and style for the menu item
-      $class = $isActive ? 'active' : '';
-      $subMenuClass = $hasChildren ? 'has-sub' . ($isActive ? ' open' : '') : '';
-      $style = $isActive && $hasChildren ? 'style="display:block;"' : 'style="display:none;"';
+            continue;
+        }
 
-      // Add the menu item to the tree
-      $treeView .= "<li class='slide $subMenuClass $class'>
-                <a href='$fullPath' class='side-menu__item $class'>
-                    <i class='{$menu->icon}'></i>
-                    <span class='menu-text'>{$menu->title}</span>
-                    " . ($hasChildren ? "<i class='fe fe-chevron-right side-menu__angle'></i>" : '') . "
-                </a>";
+        /*
+         * Preserve the existing always-visible parent menus.
+         */
+        $alwaysShowParents = [
+            'Masters',
+            'System Management',
+            'Settings',
+        ];
 
-      // If the menu has children, recursively call the function
-      if ($hasChildren) {
-        $treeView .= sideBarNavigationNew($menu->children, true);
-      }
+        if (in_array($menu->title ?? '', $alwaysShowParents, true)) {
 
-      $treeView .= "</li>";
+            $treeView .= renderMenuItem(
+                $menu,
+                $segment4,
+                $hasChildren
+            );
+
+            if ($hasChildren) {
+
+                $treeView .= "<ul class='slide-menu child1'>";
+
+                foreach ($menu->children as $child) {
+
+                    // Check child permission when one is defined.
+                    if (
+                        !empty($child->permission_name)
+                        && (!$user || !$user->can($child->permission_name))
+                    ) {
+                        continue;
+                    }
+
+                    $treeView .= renderMenuItem(
+                        $child,
+                        $segment4,
+                        false
+                    );
+                }
+
+                $treeView .= "</ul>";
+            }
+
+            continue;
+        }
+
+        /*
+         * Allow Affiliate users to see the Users Management parent
+         * even if they do not have a separate parent permission.
+         */
+        $isAffiliateUserManagement =
+            $isAffiliate
+            && (int) ($menu->id ?? 0) === 23
+            && $hasChildren;
+
+        /*
+         * All other menus must pass their normal permission check.
+         */
+        if (!$isAffiliateUserManagement) {
+
+            if (
+                empty($menu->permission_name)
+                || !$user
+                || !$user->can($menu->permission_name)
+            ) {
+                continue;
+            }
+        }
+
+        /*
+         * Build the menu URL.
+         */
+        $menuPath = $menu->path ?? 'javascript:void(0);';
+
+        $fullPath = str_contains($menuPath, 'javascript')
+            ? $menuPath
+            : url($menuPath);
+
+        /*
+         * Determine whether this menu is active.
+         */
+        $isActive = (
+            $segment4 === (explode('/', $menuPath)[0] ?? '')
+        ) || (
+            $hasChildren
+            && !empty(
+                array_filter(
+                    $menu->children,
+                    function ($child) use ($segment4) {
+                        return $segment4 === (
+                            explode('/', $child->path ?? '')[1] ?? ''
+                        );
+                    }
+                )
+            )
+        );
+
+        $class = $isActive ? 'active' : '';
+
+        $subMenuClass = $hasChildren
+            ? 'has-sub' . ($isActive ? ' open' : '')
+            : '';
+
+        /*
+         * Render the parent menu item.
+         */
+        $treeView .= "
+            <li class='slide {$subMenuClass} {$class}'>
+                <a href='{$fullPath}'
+                   class='side-menu__item {$class}'>
+                    <i class='" . ($menu->icon ?? '') . "'></i>
+                    <span class='menu-text'>" . ($menu->title ?? '') . "</span>"
+                    . ($hasChildren
+                        ? "<i class='fe fe-chevron-right side-menu__angle'></i>"
+                        : ''
+                    ) .
+                "</a>";
+
+        /*
+         * Render child menus recursively.
+         */
+        if ($hasChildren) {
+            $treeView .= sideBarNavigationNew(
+                $menu->children,
+                true
+            );
+        }
+
+        $treeView .= "</li>";
     }
 
     $treeView .= "</ul>";
-  }
 
-  return $treeView;
+    return $treeView;
 }
+
+
 
 function renderMenuItem($menu, $segment3, $hasChildren)
 {
@@ -432,7 +560,7 @@ function isCouponValid($coupon_code = "")
                 $checkout1['coupon_name'] = $coupon['coupon_code'] ?? '';
                 $checkout1['coupon_discount'] = $checkout1['sub_total'] * ($couponAmountForSpecificProduct) ?? 0;
               }
-              $checkout1['total'] = $checkout1['total_with_taxes'] - (!empty($checkout1['coupon_discount']) ? $checkout1['coupon_discount'] : 0)  + (!empty($checkout1['delivery']) ? $checkout1['delivery'] : 0);
+              $checkout1['total'] = $checkout1['total_with_taxes'] - (!empty($checkout1['coupon_discount']) ? $checkout1['coupon_discount'] : 0) + (!empty($checkout1['delivery']) ? $checkout1['delivery'] : 0);
               $totalDiscount += $checkout1['coupon_discount'];
             }
           }
@@ -493,19 +621,19 @@ function setDeliveryChargesIntoCheckoutSession($postalCode = "", $addressId = 0)
 
               if (!empty($getDeliveryAmount)) {
                 $checkout['delivery'] = currencyConversionPrice($getDeliveryAmount);
-                $checkout['total'] = $checkout['total_with_taxes'] - (!empty($checkout['coupon_discount']) ? $checkout['coupon_discount'] : 0)  + (!empty($checkout['delivery']) ? $checkout['delivery'] : 0);
+                $checkout['total'] = $checkout['total_with_taxes'] - (!empty($checkout['coupon_discount']) ? $checkout['coupon_discount'] : 0) + (!empty($checkout['delivery']) ? $checkout['delivery'] : 0);
               }
             }
           }
 
           session::put('checkoutItemData', $checkoutItemData);
           $totalDeliveryCharge = array_reduce($checkoutItemData, function ($carry, $item) {
-            return $carry + (!empty($item['delivery']) ?  $item['delivery'] : 0);
+            return $carry + (!empty($item['delivery']) ? $item['delivery'] : 0);
           }, 0);
           $checkoutData = session::get('checkoutData') ?? [];
           $checkoutData['delivery'] = $totalDeliveryCharge ?? 0;
           $checkoutData['address_id'] = $addressId ?? 0;
-          $checkoutData['total'] = $checkoutData['total_with_taxes'] - (!empty($checkoutData['coupon_discount']) ? $checkoutData['coupon_discount'] : 0)  + (!empty($checkoutData['delivery']) ? $checkoutData['delivery'] : 0);
+          $checkoutData['total'] = $checkoutData['total_with_taxes'] - (!empty($checkoutData['coupon_discount']) ? $checkoutData['coupon_discount'] : 0) + (!empty($checkoutData['delivery']) ? $checkoutData['delivery'] : 0);
           session::put('checkoutData', $checkoutData);
         }
       }
@@ -569,7 +697,7 @@ if (!function_exists('getDropPrices')) {
         }
       }
     }
-    $price = (float)number_format($price, 2);
+    $price = (float) number_format($price, 2);
     if (Session::has('currency')) {
       $currency = Session::get('currency');
       $default_currency = Currency::where('is_default', 1)->where('is_active', 1)->first();
@@ -611,7 +739,7 @@ if (!function_exists('currencyConversionPrice')) {
       }
     }
 
-    return (float)number_format($price, 2);
+    return (float) number_format($price, 2);
   }
 }
 
@@ -798,7 +926,7 @@ if (!function_exists('moveCartSessionDataToCheckoutSessionData')) {
         if (!empty($productDetails)) {
           $cart['sub_total'] = $productDetails['product_price'] * $cart['quantity'];
           $subTotalPrice += $cart['sub_total'];
-          $cart['total'] =  $productDetails['product_price'] * $cart['quantity'];
+          $cart['total'] = $productDetails['product_price'] * $cart['quantity'];
           // $totalPrice = $cart['total'];
           // print_r($productDetails);die;
           $categoryTaxes = CategoryTax::where('category_taxes.category_id', $productDetails['category_id'] ?? 0)->leftJoin('taxes', 'taxes.id', 'category_taxes.tax_id')->select('category_taxes.*', 'taxes.name as tax_name')->get();
@@ -853,14 +981,14 @@ function convertOneCurrencyToAnother($currency1, $currency2, $price)
     $price = ($user_currency_amount * $price) / $default_currency_amount;
   }
 
-  return (float)number_format($price, 2);
+  return (float) number_format($price, 2);
 }
 
 if (!function_exists('getMenusFromAcl')) {
   function getMenusFromAcl($parentId = 0)
   {
-    $branch    = [];
-    $elements =   DB::table("acls")
+    $branch = [];
+    $elements = DB::table("acls")
       ->where("parent_id", $parentId)
       ->where('is_active', 1)
       ->orderBy('acls.module_order', 'ASC')
@@ -882,43 +1010,43 @@ if (!function_exists('getMenusFromAcl')) {
 if (!function_exists('getCategpryIdByName')) {
   function getCategpryIdByName($name = '')
   {
-      $category = 0;
-      if(!empty($name)){
-          $category = Category::where('name', $name)->value('id') ?? 0;
-      } 
-      return $category;
+    $category = 0;
+    if (!empty($name)) {
+      $category = Category::where('name', $name)->value('id') ?? 0;
+    }
+    return $category;
   }
 }
 
 if (!function_exists('getVarientIdByName')) {
   function getVarientIdByName($name = '')
   {
-      $varient = 0;
-      if(!empty($name)){
-          $varient = Varient::where('name', $name)->value('id') ?? 0;
-      } 
-      return $varient;
+    $varient = 0;
+    if (!empty($name)) {
+      $varient = Varient::where('name', $name)->value('id') ?? 0;
+    }
+    return $varient;
   }
 }
 
 if (!function_exists('getAttributIdByName')) {
   function getAttributIdByName($name = '')
   {
-      $attribute = 0;
-      if(!empty($name)){
-          $attribute = Attribute::where('name', $name)->value('id') ?? 0;
-      } 
-      return $attribute;
+    $attribute = 0;
+    if (!empty($name)) {
+      $attribute = Attribute::where('name', $name)->value('id') ?? 0;
+    }
+    return $attribute;
   }
 }
 
 if (!function_exists('getAttributValueIdByName')) {
   function getAttributValueIdByName($name = '')
   {
-      $attribute = 0;
-      if(!empty($name)){
-          $attribute = AttributeValue::where('name', $name)->value('id') ?? 0;
-      } 
-      return $attribute;
+    $attribute = 0;
+    if (!empty($name)) {
+      $attribute = AttributeValue::where('name', $name)->value('id') ?? 0;
+    }
+    return $attribute;
   }
 }
